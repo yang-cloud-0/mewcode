@@ -1,23 +1,21 @@
-"""Tool layer for MewCode Lite.
+"""MewCode Lite 的工具层。
 
-Four tools the model can call:
-  - read_file   : read a UTF-8 text file inside the workspace
-  - write_file  : write/overwrite a UTF-8 text file inside the workspace
-  - grep_search : regex search across text files inside the workspace
-  - run_shell   : run a shell command in the workspace (guarded, see below)
+模型可以调用的 4 个工具：
+  - read_file   ：读取工作区内的 UTF-8 文本文件
+  - write_file  ：写入/覆盖工作区内的 UTF-8 文本文件
+  - grep_search ：在工作区内的文本文件里做正则搜索
+  - run_shell   ：在工作区里执行 shell 命令（有安全防护，见下文）
 
-Safety rules enforced here (not left to the model):
-  1. File tools are confined to the workspace root. Any path that escapes
-     the root (e.g. "../secret.txt") is rejected.
-  2. run_shell rejects obviously destructive commands outright.
-  3. run_shell asks for human confirmation before running anything that
-     is not on a small read-only allowlist. In tests / demo a confirmation
-     callback is injected; in the interactive CLI it prompts on the tty.
+安全规则在这里强制执行，而不是指望模型自觉：
+  1. 文件工具被限制在工作区根目录内，任何逃出根目录的路径
+     （例如 "../secret.txt"）都会被拒绝。
+  2. run_shell 直接拒绝明显有破坏性的命令。
+  3. run_shell 在执行“只读白名单”之外的命令前，必须取得人工确认。
+     测试和 demo 里注入确认回调；交互式 CLI 里在终端弹窗询问。
 
-Every tool returns a plain string. On failure the tools in this module
-raise ToolError; the agent loop converts that into a structured JSON
-error message fed back to the model, so the model can fix its arguments
-and retry instead of the run crashing.
+每个工具成功时返回普通字符串；失败时抛出 ToolError，
+由 Agent 主循环转成结构化 JSON 错误回传给模型，
+让模型自己修正参数重试，而不是让整个运行直接崩溃。
 """
 
 from __future__ import annotations
@@ -29,10 +27,10 @@ from typing import Callable, Optional
 
 
 class ToolError(Exception):
-    """A tool call failed in a way the model should hear about and fix."""
+    """工具调用失败。错误信息需要回传给模型，让它自己修正。"""
 
 
-# Commands that are never allowed, no matter who confirms.
+# 无论谁确认都不允许执行的命令，直接拒绝。
 BLOCKED_PATTERNS = [
     r"\brm\s+-rf\s+/",
     r"\brm\s+-rf\s+~",
@@ -44,7 +42,7 @@ BLOCKED_PATTERNS = [
     r"\bchmod\s+-R\s+777\s+/",
 ]
 
-# Read-only commands that may run without human confirmation.
+# 只读命令白名单：可以免人工确认直接执行。
 SAFE_COMMAND_PREFIXES = (
     "ls", "cat", "head", "tail", "grep", "rg", "find", "pwd", "echo",
     "python3 --version", "python --version", "git status", "git log",
@@ -57,14 +55,14 @@ DEFAULT_TIMEOUT = 30
 
 
 class Workspace:
-    """Confines all file access to one root directory."""
+    """把所有文件访问限制在一个根目录（工作区）之内。"""
 
     def __init__(self, root: str | Path):
         self.root = Path(root).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
 
     def resolve(self, rel_path: str) -> Path:
-        """Resolve a model-supplied path, rejecting escapes from the root."""
+        """解析模型给出的路径，拒绝逃出工作区根目录的路径。"""
         p = (self.root / rel_path).resolve()
         if p != self.root and self.root not in p.parents:
             raise ToolError(f"path escapes workspace: {rel_path!r}")
@@ -72,15 +70,15 @@ class Workspace:
 
 
 class ToolBox:
-    """Holds the workspace + confirmation policy and implements the tools."""
+    """持有工作区与确认策略，并实现 4 个工具。"""
 
     def __init__(
         self,
         workspace: Workspace,
         confirm: Optional[Callable[[str], bool]] = None,
     ):
-        # confirm(command) -> True means "yes, run it".
-        # Default policy: only allowlisted read-only commands run unattended.
+        # confirm(command) 返回 True 表示人工批准执行。
+        # 默认策略：只有白名单里的只读命令可以免确认执行。
         self.ws = workspace
         self.confirm = confirm
 
@@ -154,7 +152,7 @@ class ToolBox:
         return any(cmd == p or cmd.startswith(p + " ") for p in SAFE_COMMAND_PREFIXES)
 
 
-# OpenAI-style tool schemas handed to the model.
+# 提供给模型的工具定义（OpenAI 风格 function schema）。
 TOOL_SCHEMAS = [
     {
         "type": "function",

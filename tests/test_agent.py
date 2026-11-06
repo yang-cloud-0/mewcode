@@ -22,10 +22,9 @@ def test_write_and_finish(tmp_path):
 
 
 def test_tool_error_is_fed_back_and_model_recovers(tmp_path):
-    # First turn: the fake model asks for a file that does not exist.
-    # The loop must NOT crash — it feeds {"ok": false, ...} back, and the
-    # model (second script item, a callable) checks that feedback, then
-    # recovers by creating the file instead.
+    # 第一轮：假模型要读一个不存在的文件。
+    # 主循环不许崩溃——要把 {"ok": false, ...} 回传回去；
+    # 第二条脚本（可调用对象）检查这条反馈，然后改成创建该文件来恢复。
     def second_turn(messages):
         tool_msgs = [m for m in messages if m.get("role") == "tool"]
         assert tool_msgs, "expected a tool feedback message"

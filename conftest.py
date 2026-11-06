@@ -1,6 +1,5 @@
-# Ensures `import mewcode` works when running pytest from the repo root
-# without installing the package first. (With `pip install -e .` this is
-# redundant but harmless.)
+# 保证在仓库根目录直接跑 pytest 时 `import mewcode` 能成功，
+# 无需先安装本包。（即使已 `pip install -e .`，保留它也无害。）
 import os
 import sys
 

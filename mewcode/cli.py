@@ -1,14 +1,14 @@
-"""Command-line entry point.
+"""命令行入口。
 
-Usage:
-    python -m mewcode "your task"        # real model (needs an API key)
-    python -m mewcode --demo             # offline scripted demo, no key
+用法：
+    python -m mewcode "你的任务"     # 接真实模型（需要 API key）
+    python -m mewcode --demo          # 离线脚本演示，不需要 key
 
-Real mode reads its configuration from the environment:
-    MEWCODE_API_KEY   (or OPENAI_API_KEY)
-    MEWCODE_MODEL     (default: gpt-4o-mini)
-    MEWCODE_BASE_URL  (default: https://api.openai.com/v1)
-    MEWCODE_WORKSPACE (default: current directory)
+真实模式从环境变量读配置：
+    MEWCODE_API_KEY   （或 OPENAI_API_KEY）
+    MEWCODE_MODEL     （默认 gpt-4o-mini）
+    MEWCODE_BASE_URL  （默认 https://api.openai.com/v1）
+    MEWCODE_WORKSPACE （默认当前目录）
 """
 
 from __future__ import annotations
@@ -30,8 +30,8 @@ def _tty_confirm(command: str) -> bool:
 
 
 def run_demo() -> int:
-    """Offline demo: a scripted model writes hello.py, runs it, and the
-    real agent loop + real tools do all the work. No network, no key."""
+    """离线 demo：脚本化的假模型负责决策，真实的 Agent 主循环和
+    工具负责干活——创建 hello.py 并真的执行它。不联网、不需要 key。"""
     tmp = Path(tempfile.mkdtemp(prefix="mewcode_demo_"))
     print(f"demo workspace: {tmp}")
     script = [

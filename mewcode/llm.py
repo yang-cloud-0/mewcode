@@ -1,22 +1,22 @@
-"""LLM client layer for MewCode Lite.
+"""MewCode Lite 的模型客户端层。
 
-Design: the agent loop only talks to the `LLMClient` protocol
-(`chat(messages, tools) -> AssistantReply`). Two implementations:
+设计：Agent 主循环只和 `LLMClient` 协议打交道
+（`chat(messages, tools) -> AssistantReply`），不关心背后是哪家模型。
+两个实现：
 
-  - OpenAICompatibleClient: talks to any OpenAI-compatible chat-completions
-    endpoint (OpenAI, DeepSeek, Qwen, local servers, ...) using only the
-    Python standard library. It requests *streaming* responses and
-    reassembles them with `assemble_stream` (see below).
-  - FakeLLM: a scripted stand-in used by the demo and the test-suite, so
-    the whole agent can run offline with no API key and no network.
+  - OpenAICompatibleClient：对接任何 OpenAI 兼容的 chat-completions
+    接口（OpenAI、DeepSeek、通义、本地部署服务等），只用 Python
+    标准库。它请求的是流式（streaming）响应，再用下面的
+    `assemble_stream` 把分片拼装回完整回复。
+  - FakeLLM：按脚本回放的假模型，供 demo 和测试使用，
+    让整个 Agent 可以离线、无需 API key 运行。
 
-Why streaming matters for tool calls: with stream=true the model does not
-return one finished tool_call. It returns many small SSE chunks, and a
-single tool call is split across chunks — the function name may arrive
-once, while `arguments` arrives as many string fragments keyed by an
-`index`. `assemble_stream` is the piece that stitches those fragments
-back into complete tool calls. Getting this wrong is the most common bug
-in hand-written agents, which is why it is a pure function with tests.
+为什么流式对工具调用是关键：stream=true 时模型不会一次性返回
+完整的 tool_call，而是返回很多个 SSE 小块，一个工具调用被拆散在
+多个块里——函数名可能只出现一次，而 `arguments` 是按 `index`
+分组、一点点到达的字符串碎片。`assemble_stream` 做的就是把这些
+碎片拼回完整的工具调用。手写 Agent 最常见的 bug 就出在这里，
+所以把它做成纯函数并配了专门的测试。
 """
 
 from __future__ import annotations
@@ -31,11 +31,11 @@ from typing import Iterable, Optional, Protocol
 class ToolCall:
     id: str
     name: str
-    arguments: str  # raw JSON string, exactly as the model produced it
+    arguments: str  # 原始 JSON 字符串，保持模型产出的原样
 
     def parsed_arguments(self) -> dict:
-        """Parse the arguments JSON. Raises ValueError on malformed JSON —
-        the agent loop turns that into structured error feedback."""
+        """解析参数 JSON。格式不合法时抛 ValueError，
+        由 Agent 主循环转成结构化错误反馈给模型。"""
         args = json.loads(self.arguments or "{}")
         if not isinstance(args, dict):
             raise ValueError("tool arguments must be a JSON object")
@@ -54,15 +54,14 @@ class LLMClient(Protocol):
 
 
 # --------------------------------------------------------------------------
-# Streaming assembly
+# 流式拼装
 # --------------------------------------------------------------------------
 
 def assemble_stream(chunks: Iterable[dict]) -> AssistantReply:
-    """Reassemble one streamed chat-completion into an AssistantReply.
+    """把一次流式 chat-completion 响应拼装成完整的 AssistantReply。
 
-    `chunks` are the decoded JSON objects of each SSE `data:` line
-    (excluding the final `[DONE]`). Tool-call fragments are grouped by
-    their `index`; content fragments are concatenated in order.
+    `chunks` 是每条 SSE `data:` 行解码后的 JSON 对象（不含最后的
+    `[DONE]`）。工具调用碎片按 `index` 分组拼接，文本碎片按顺序连接。
     """
     content_parts: list[str] = []
     by_index: dict[int, dict] = {}
@@ -92,7 +91,7 @@ def assemble_stream(chunks: Iterable[dict]) -> AssistantReply:
 
 
 def iter_sse_json(lines: Iterable[str]):
-    """Yield decoded JSON objects from raw SSE lines (`data: {...}`)."""
+    """从原始 SSE 行（`data: {...}`）逐条解出 JSON 对象。"""
     for line in lines:
         line = line.strip()
         if not line.startswith("data:"):
@@ -104,7 +103,7 @@ def iter_sse_json(lines: Iterable[str]):
 
 
 # --------------------------------------------------------------------------
-# Real client (OpenAI-compatible, standard library only)
+# 真实客户端（OpenAI 兼容，只用标准库）
 # --------------------------------------------------------------------------
 
 class OpenAICompatibleClient:
@@ -142,16 +141,15 @@ class OpenAICompatibleClient:
 
 
 # --------------------------------------------------------------------------
-# Scripted fake client (demo + tests, fully offline)
+# 脚本化假客户端（供 demo 与测试使用，完全离线）
 # --------------------------------------------------------------------------
 
 class FakeLLM:
-    """Plays back a fixed script of replies, one per chat() call.
+    """按固定脚本回放回复，每次 chat() 调用消耗一条。
 
-    Each script item is either an AssistantReply or a callable that
-    receives the current messages and returns an AssistantReply — the
-    callable form lets a test simulate a model that *reacts* to tool
-    error feedback by fixing its arguments on the next turn.
+    每条脚本可以是一个 AssistantReply，也可以是一个接收当前
+    对话、返回 AssistantReply 的可调用对象——用可调用形式，测试就
+    能模拟“模型看到工具错误反馈后，下一轮自己修正参数”的行为。
     """
 
     def __init__(self, script: list):
@@ -167,7 +165,7 @@ class FakeLLM:
 
 
 def tool_call_reply(name: str, arguments: dict, call_id: Optional[str] = None) -> AssistantReply:
-    """Helper for building a one-tool-call reply in demos and tests."""
+    """小工具：在 demo 和测试里快速构造一个只含一次工具调用的回复。"""
     return AssistantReply(tool_calls=[
         ToolCall(id=call_id or f"call_{name}", name=name, arguments=json.dumps(arguments))
     ])

@@ -49,6 +49,6 @@ def test_shell_blocked_command(box):
 
 
 def test_shell_unconfirmed_command_rejected(box):
-    # fixture's confirm callback always says no
+    # 夹具里的确认回调恒为“拒绝”
     with pytest.raises(ToolError):
         box.run_shell("python3 hello.py")

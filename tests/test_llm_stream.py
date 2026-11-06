@@ -15,8 +15,8 @@ def test_content_fragments_concatenate():
 
 
 def test_tool_call_arguments_assembled_from_fragments():
-    # One tool call split across three chunks: name first, then the
-    # arguments JSON arriving in two string fragments.
+    # 一个工具调用被拆成三块：先给函数名，
+    # 然后 arguments JSON 分两次以字符串碎片到达。
     chunks = [
         _chunk({"tool_calls": [{"index": 0, "id": "call_1", "function": {"name": "write_file", "arguments": ""}}]}),
         _chunk({"tool_calls": [{"index": 0, "function": {"arguments": "{\"path\": \"a.txt\","}}]}),
